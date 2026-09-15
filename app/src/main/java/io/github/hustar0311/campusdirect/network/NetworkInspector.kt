@@ -1,9 +1,12 @@
 package io.github.hustar0311.campusdirect.network
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
+import android.net.wifi.WifiManager
+import android.os.Build
 import io.github.hustar0311.campusdirect.model.AppConfig
 import io.github.hustar0311.campusdirect.model.CheckResult
 import io.github.hustar0311.campusdirect.model.NetworkSnapshot
@@ -15,14 +18,22 @@ import java.net.Socket
 
 class NetworkInspector(context: Context) {
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+    private val wifiManager = context.applicationContext.getSystemService(WifiManager::class.java)
 
+    @SuppressLint("MissingPermission")
     suspend fun inspect(config: AppConfig): NetworkSnapshot = withContext(Dispatchers.IO) {
         val network = connectivityManager.activeNetwork
             ?: return@withContext NetworkSnapshot(checks = listOf(failed("活动网络", "没有活动网络")))
         val capabilities = connectivityManager.getNetworkCapabilities(network)
         val properties = connectivityManager.getLinkProperties(network)
         val isWifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        val ssid = (capabilities?.transportInfo as? WifiInfo)?.ssid
+        val wifiInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            capabilities?.transportInfo as? WifiInfo
+        } else {
+            @Suppress("DEPRECATION")
+            wifiManager.connectionInfo
+        }
+        val ssid = wifiInfo?.ssid
             ?.takeUnless { it.isBlank() || it.contains("unknown", ignoreCase = true) }
 
         val cidr = Ipv4Cidr.parse(config.campusCidr)
