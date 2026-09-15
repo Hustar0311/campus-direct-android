@@ -1,0 +1,6 @@
+config campus_direct_android 'main'
+    option expected_cidr 'FILL_ON_R5C'
+    option expected_gateway 'FILL_ON_R5C'
+    option route_protocol '99'
+    option state_file '/etc/campus-direct-android.state'
+    option lock_dir '/tmp/campus-direct-android.lock'
