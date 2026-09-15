@@ -93,12 +93,15 @@ private fun CampusDirectApp(vm: MainViewModel) {
                 state = state,
                 padding = padding,
                 onInspect = {
-                    val permission = if (Build.VERSION.SDK_INT >= 33) {
-                        Manifest.permission.NEARBY_WIFI_DEVICES
+                    val permissions = if (Build.VERSION.SDK_INT >= 33) {
+                        arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
                     } else {
-                        Manifest.permission.ACCESS_FINE_LOCATION
+                        arrayOf(
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                        )
                     }
-                    permissionLauncher.launch(arrayOf(permission))
+                    permissionLauncher.launch(permissions)
                 },
                 onStatus = vm::remoteStatus,
                 onApply = vm::applyRoute,
