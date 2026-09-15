@@ -34,4 +34,4 @@ GitHub Actions 在 `main` 分支 push、pull request 或手动触发时执行相
 
 ## 当前版本
 
-`0.1.0`：首次可构建 MVP。目标 API 36，最低 Android 8.0。
+`0.1.1`：物理 Wi-Fi 与 Tailscale VPN 使用独立网络数据源；开启 Tailscale 后仍从底层 Wi-Fi 读取校园网地址、前缀、网关和 DNS，同时通过默认 VPN 路径检查 R5C SSH。目标 API 36，最低 Android 8.0。

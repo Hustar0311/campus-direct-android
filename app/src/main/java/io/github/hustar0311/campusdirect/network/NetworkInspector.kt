@@ -22,11 +22,28 @@ class NetworkInspector(context: Context) {
 
     @SuppressLint("MissingPermission")
     suspend fun inspect(config: AppConfig): NetworkSnapshot = withContext(Dispatchers.IO) {
-        val network = connectivityManager.activeNetwork
-            ?: return@withContext NetworkSnapshot(checks = listOf(failed("活动网络", "没有活动网络")))
-        val capabilities = connectivityManager.getNetworkCapabilities(network)
-        val properties = connectivityManager.getLinkProperties(network)
-        val isWifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        val cidr = Ipv4Cidr.parse(config.campusCidr)
+        val gatewayExpected = Ipv4Value.parse(config.expectedGateway)
+        val wifiNetwork = selectPhysicalWifiCandidate(
+            connectivityManager.allNetworks.map { network ->
+                val networkCapabilities = connectivityManager.getNetworkCapabilities(network)
+                val networkProperties = connectivityManager.getLinkProperties(network)
+                val campusIpv4Count = networkProperties?.linkAddresses.orEmpty().count { link ->
+                    link.address is Inet4Address && runCatching {
+                        cidr.contains(Ipv4Value.parse(link.address.hostAddress.orEmpty()))
+                    }.getOrDefault(false)
+                }
+                WifiCandidate(
+                    value = network,
+                    hasWifi = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true,
+                    hasVpn = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true,
+                    campusIpv4Count = campusIpv4Count,
+                )
+            },
+        )
+        val capabilities = wifiNetwork?.let(connectivityManager::getNetworkCapabilities)
+        val properties = wifiNetwork?.let(connectivityManager::getLinkProperties)
+        val isWifi = wifiNetwork != null
         val wifiInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             capabilities?.transportInfo as? WifiInfo
         } else {
@@ -36,8 +53,6 @@ class NetworkInspector(context: Context) {
         val ssid = wifiInfo?.ssid
             ?.takeUnless { it.isBlank() || it.contains("unknown", ignoreCase = true) }
 
-        val cidr = Ipv4Cidr.parse(config.campusCidr)
-        val gatewayExpected = Ipv4Value.parse(config.expectedGateway)
         val allIpv4 = properties?.linkAddresses.orEmpty()
             .filter { it.address is Inet4Address }
         val candidates = allIpv4.filter { link ->
@@ -52,7 +67,7 @@ class NetworkInspector(context: Context) {
         val sshReachable = runCatching { canConnect(config.sshHost, config.sshPort) }.getOrDefault(false)
 
         val checks = buildList {
-            add(result("活动网络", isWifi, if (isWifi) "Wi-Fi" else "不是 Wi-Fi"))
+            add(result("底层网络", isWifi, if (isWifi) "物理 Wi-Fi" else "未找到物理 Wi-Fi"))
             add(result("校园网 IPv4", candidate != null, if (candidate != null) "已找到唯一候选" else "候选地址必须恰好一个"))
             add(result(
                 "IPv4 地址范围",
@@ -88,4 +103,17 @@ class NetworkInspector(context: Context) {
     private companion object {
         const val CONNECT_TIMEOUT_MS = 4_000
     }
+}
+
+internal data class WifiCandidate<T>(
+    val value: T,
+    val hasWifi: Boolean,
+    val hasVpn: Boolean,
+    val campusIpv4Count: Int,
+)
+
+internal fun <T> selectPhysicalWifiCandidate(candidates: List<WifiCandidate<T>>): T? {
+    val physicalWifi = candidates.filter { it.hasWifi && !it.hasVpn }
+    return physicalWifi.firstOrNull { it.campusIpv4Count > 0 }?.value
+        ?: physicalWifi.firstOrNull()?.value
 }
