@@ -306,7 +306,7 @@ private fun VerificationCard(result: io.github.hustar0311.campusdirect.model.Ver
                 Text("$marker ${item.label}：${item.value}")
             }
             Text(
-                "校园网 ICMP 可达仅表示连通；只有 Direct、端点匹配、租约和 SNAT 等条件共同满足时，才显示综合所有权验证通过。",
+                "校园网 ICMP 仅是辅助连通性；综合所有权由 Direct、端点匹配、租约、SNAT、helper 状态归属和路由精确匹配决定。",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

@@ -49,6 +49,35 @@ class SshGatewayTest {
     }
 
     @Test
+    fun explicitOwnershipRemainsTrueWhenAuxiliaryPingFails() {
+        val result = gateway.parseResult(
+            "verify",
+            0,
+            verificationJson(direct = true, endpointMatches = true, ping = false),
+        )
+
+        assertFalse(result.verification?.campusPingReachable ?: true)
+        assertTrue(result.verification?.verifiedOwner == true)
+    }
+
+    @Test
+    fun legacyOwnershipInferenceDoesNotDependOnPing() {
+        val result = gateway.parseResult(
+            "verify",
+            0,
+            verificationJson(
+                direct = true,
+                endpointMatches = true,
+                ping = false,
+                includeVerifiedOwner = false,
+            ),
+        )
+
+        assertFalse(result.verification?.campusPingReachable ?: true)
+        assertTrue(result.verification?.verifiedOwner == true)
+    }
+
+    @Test
     fun legacyReachabilityAloneNeverInfersOwnership() {
         val result = gateway.parseResult("verify", 0, """{"ok":true,"reachable":true}""")
 
@@ -94,7 +123,12 @@ class SshGatewayTest {
         assertFalse(verification?.verifiedOwner ?: true)
     }
 
-    private fun verificationJson(direct: Boolean, endpointMatches: Boolean): String = """
+    private fun verificationJson(
+        direct: Boolean,
+        endpointMatches: Boolean,
+        ping: Boolean = true,
+        includeVerifiedOwner: Boolean = true,
+    ): String = """
         {
           "ok": true,
           "action": "verify",
@@ -104,10 +138,10 @@ class SshGatewayTest {
           "direct_endpoint": "peer-address:port",
           "direct_endpoint_ip": "peer-address",
           "endpoint_matches_peer": $endpointMatches,
-          "campus_ping_reachable": true,
+          "campus_ping_reachable": $ping,
           "lease_fresh": true,
           "snat_consistent": true,
-          "verified_owner": true,
+          ${if (includeVerifiedOwner) "\"verified_owner\": true," else ""}
           "state_owned": true,
           "route_exact": true,
           "status": "active",

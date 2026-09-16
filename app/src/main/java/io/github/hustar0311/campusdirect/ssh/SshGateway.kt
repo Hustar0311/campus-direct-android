@@ -143,20 +143,17 @@ class SshGateway {
         val leaseDeadline = details.firstLong("lease_deadline")
         val expired = details.firstBoolean("expired")
         val watchdogManagedPeer = details.firstString("watchdog_managed_peer")
-        val strictOwnershipSignals = listOf(
+        val inferredOwnershipSignals = listOf(
             tailnetReachable,
             direct,
             endpointMatchesPeer,
-            campusPingReachable,
             leaseFresh,
             snatConsistent,
-        )
-        val ownershipSafetySignals = strictOwnershipSignals + listOf(
             stateOwned,
             routeExact,
-            expired?.not(),
         )
-        val inferredVerifiedOwner = strictOwnershipSignals
+        val ownershipSafetySignals = inferredOwnershipSignals + expired?.not()
+        val inferredVerifiedOwner = inferredOwnershipSignals
             .takeIf { signals -> signals.all { it != null } }
             ?.all { it == true }
         val verifiedOwner = when {

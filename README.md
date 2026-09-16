@@ -36,7 +36,7 @@ GitHub Actions 在 `main` 分支 push、pull request 或手动触发时执行相
 
 `r5c/` 提供独立于其他客户端状态的 helper 参考实现和部署说明。它不由 GitHub Actions 自动部署；必须由设备管理员在本地审查、填写环境配置并安装到受限 SSH dispatcher 后，APK 的远程修改功能才可使用。`0.2.0` 的 Apply 始终只把当前物理 Wi-Fi IPv4 交给 helper；地址替换、原子更新和失败回滚均由 helper 完成，APK 不会先清理旧地址。
 
-Verify 可兼容旧版仅返回 `reachable` 的 JSON，也会解析新版的 `tailnet_reachable`、`direct`、`direct_endpoint_ip`、`endpoint_matches_peer`、`campus_ping_reachable`、`lease_fresh`、`snat_consistent`、`verified_owner`、Watchdog 与租约剩余时间。校园网 ICMP 可达只代表连通性，不能单独证明 Direct 路径或路由所有权。
+Verify 可兼容旧版仅返回 `reachable` 的 JSON，也会解析新版的 `tailnet_reachable`、`direct`、`direct_endpoint_ip`、`endpoint_matches_peer`、`campus_ping_reachable`、`lease_fresh`、`snat_consistent`、`verified_owner`、Watchdog 与租约剩余时间。校园网 ICMP 只作为辅助连通性展示，不参与综合所有权结论。
 
 应用不使用 WorkManager、后台 Service 或心跳。网络读取和 SSH 操作仅在用户点击按钮时执行：物理校园 Wi-Fi 数据从非 VPN 网络读取，R5C SSH 仍走系统默认路径（通常为 Tailscale VPN）。
 
