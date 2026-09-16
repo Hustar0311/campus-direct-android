@@ -59,5 +59,20 @@ data class RemoteResult(
     val operation: String,
     val changed: Boolean = false,
     val reachable: Boolean? = null,
+    val verification: VerificationResult? = null,
     val message: String,
+)
+
+data class VerificationResult(
+    val tailnetReachable: Boolean? = null,
+    val direct: Boolean? = null,
+    val directEndpointIp: String? = null,
+    val endpointMatchesPeer: Boolean? = null,
+    val campusPingReachable: Boolean? = null,
+    val leaseFresh: Boolean? = null,
+    val snatConsistent: Boolean? = null,
+    val verifiedOwner: Boolean? = null,
+    val watchdogActive: Boolean? = null,
+    val watchdogStatus: String? = null,
+    val leaseRemainingSeconds: Long? = null,
 )

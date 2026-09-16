@@ -6,6 +6,17 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val stableStoreFile = providers.environmentVariable("CAMPUS_SIGNING_STORE_FILE").orNull
+val stableStorePassword = providers.environmentVariable("CAMPUS_SIGNING_STORE_PASSWORD").orNull
+val stableKeyAlias = providers.environmentVariable("CAMPUS_SIGNING_KEY_ALIAS").orNull
+val stableKeyPassword = providers.environmentVariable("CAMPUS_SIGNING_KEY_PASSWORD").orNull
+val hasStableSigning = listOf(
+    stableStoreFile,
+    stableStorePassword,
+    stableKeyAlias,
+    stableKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "io.github.hustar0311.campusdirect"
     compileSdk = 36
@@ -14,14 +25,28 @@ android {
         applicationId = "io.github.hustar0311.campusdirect"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        if (hasStableSigning) {
+            create("campusStable") {
+                storeFile = file(requireNotNull(stableStoreFile))
+                storePassword = requireNotNull(stableStorePassword)
+                keyAlias = requireNotNull(stableKeyAlias)
+                keyPassword = requireNotNull(stableKeyPassword)
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfigs.findByName("campusStable")?.let { signingConfig = it }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -29,6 +54,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfigs.findByName("campusStable")?.let { signingConfig = it }
         }
     }
 
@@ -70,4 +96,5 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
+    testImplementation(libs.json)
 }

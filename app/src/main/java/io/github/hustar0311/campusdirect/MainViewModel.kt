@@ -8,6 +8,7 @@ import io.github.hustar0311.campusdirect.data.PrivateKeyStore
 import io.github.hustar0311.campusdirect.model.AppConfig
 import io.github.hustar0311.campusdirect.model.AuthMode
 import io.github.hustar0311.campusdirect.model.NetworkSnapshot
+import io.github.hustar0311.campusdirect.model.RemoteResult
 import io.github.hustar0311.campusdirect.network.NetworkInspector
 import io.github.hustar0311.campusdirect.ssh.SshGateway
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ data class UiState(
     val busy: Boolean = false,
     val showSettings: Boolean = false,
     val message: String? = null,
+    val lastRemoteResult: RemoteResult? = null,
 ) {
     val configErrors: List<String>
         get() = config.validationErrors(hasImportedKey)
@@ -97,16 +99,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         requireValidConfig()
         val peer = requireReadyPeer()
         val previous = _state.value.managedPeer
-        if (previous != null && previous != peer) {
-            val cleanup = executeRemote("cleanup", previous)
-            check(cleanup.ok) { "旧地址清理失败，未添加新路由" }
+        val decision = applyCurrentPeer(previous, peer) { operation, target ->
+            executeRemote(operation, target)
         }
-        val result = executeRemote("apply", peer)
-        if (result.ok) {
+        val result = decision.remoteResult
+        if (result.ok && decision.managedPeer == peer) {
             configRepository.setManagedPeer(peer)
-            _state.update { it.copy(managedPeer = peer, message = result.message) }
+            _state.update {
+                it.copy(managedPeer = peer, message = result.message, lastRemoteResult = result)
+            }
         } else {
-            _state.update { it.copy(message = result.message) }
+            val retained = previous?.let { "旧受管地址 $it 已保留" } ?: "本地未记录新的受管地址"
+            _state.update {
+                it.copy(
+                    managedPeer = decision.managedPeer,
+                    message = "Apply 失败，$retained：${result.message}",
+                    lastRemoteResult = result,
+                )
+            }
         }
     }
 
@@ -115,7 +125,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val peer = _state.value.network?.ipv4 ?: _state.value.managedPeer
             ?: error("没有可验证的手机地址")
         val result = executeRemote("verify", peer)
-        _state.update { it.copy(message = result.message) }
+        _state.update { it.copy(message = result.message, lastRemoteResult = result) }
     }
 
     fun cleanupRoute() = launchBusy {
@@ -124,16 +134,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val result = executeRemote("cleanup", peer)
         if (result.ok) {
             configRepository.setManagedPeer(null)
-            _state.update { it.copy(managedPeer = null, message = "远端路由已清理，请将 Wi-Fi 恢复为 DHCP") }
+            _state.update {
+                it.copy(
+                    managedPeer = null,
+                    message = "远端路由已清理，请将 Wi-Fi 恢复为 DHCP",
+                    lastRemoteResult = result,
+                )
+            }
         } else {
-            _state.update { it.copy(message = result.message) }
+            _state.update { it.copy(message = result.message, lastRemoteResult = result) }
         }
     }
 
     private fun runRemote(operation: String, peer: String?) = launchBusy {
         requireValidConfig()
         val result = executeRemote(operation, peer)
-        _state.update { it.copy(message = result.message) }
+        _state.update { it.copy(message = result.message, lastRemoteResult = result) }
     }
 
     private suspend fun executeRemote(operation: String, peer: String?) = sshGateway.execute(

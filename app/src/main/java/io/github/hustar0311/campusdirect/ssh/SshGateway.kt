@@ -9,6 +9,7 @@ import com.jcraft.jsch.UserInfo
 import io.github.hustar0311.campusdirect.model.AppConfig
 import io.github.hustar0311.campusdirect.model.AuthMode
 import io.github.hustar0311.campusdirect.model.RemoteResult
+import io.github.hustar0311.campusdirect.model.VerificationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -88,16 +89,110 @@ class SshGateway {
             val action = json.optString("action", operation)
             val changed = action in setOf("applied", "removed") || json.optBoolean("changed", false)
             val reachable = if (json.has("reachable")) json.getBoolean("reachable") else null
+            val verification = parseVerification(json, operation)
             val message = when {
-                ok && reachable == true -> "远端验证可达"
+                ok && verification?.verifiedOwner == true -> "综合所有权验证通过"
+                ok && verification?.verifiedOwner == false -> "验证完成，但综合所有权验证未通过"
+                ok && operation == "verify" && verification != null -> "验证完成，综合所有权状态未知"
+                ok && reachable == true -> "远端验证可达（仅连通性，不代表所有权）"
                 ok && reachable == false -> "路由存在，但目标暂不可达"
                 ok -> "操作完成：$action"
                 else -> "远端拒绝：${json.optString("error", "unknown_error")}"
             }
-            RemoteResult(ok, operation, changed, reachable, message)
+            RemoteResult(
+                ok = ok,
+                operation = operation,
+                changed = changed,
+                reachable = reachable,
+                verification = verification,
+                message = message,
+            )
         }.getOrElse {
             RemoteResult(false, operation, message = "远端响应不是有效 JSON（退出码 $exitStatus）")
         }
+    }
+
+    private fun parseVerification(json: JSONObject, operation: String): VerificationResult? {
+        val details = json.optJSONObject("verification") ?: json
+        val tailnetReachable = details.firstBoolean("tailnet_reachable", "tailnet_online")
+        val direct = details.firstBoolean("direct", "tailscale_direct")
+        val directEndpointIp = details.firstString("direct_endpoint_ip", "endpoint_ip")
+        val endpointMatchesPeer = details.firstBoolean("endpoint_matches_peer", "endpoint_matches_campus_ip")
+        val campusPingReachable = details.firstBoolean("campus_ping_reachable", "reachable")
+            ?: json.firstBoolean("campus_ping_reachable", "reachable")
+        val leaseFresh = details.firstBoolean("lease_fresh")
+        val snatConsistent = details.firstBoolean("snat_consistent")
+        val explicitVerifiedOwner = details.firstBoolean("verified_owner")
+        val watchdogActive = details.firstBoolean("watchdog_active", "watchdog_running")
+            ?: json.firstBoolean("watchdog_active", "watchdog_running")
+        val watchdogStatus = details.firstString("watchdog_status") ?: json.firstString("watchdog_status")
+        val leaseRemainingSeconds = details.firstLong("lease_remaining_seconds")
+            ?: json.firstLong("lease_remaining_seconds")
+        val strictOwnershipSignals = listOf(
+            tailnetReachable,
+            direct,
+            endpointMatchesPeer,
+            campusPingReachable,
+            leaseFresh,
+            snatConsistent,
+        )
+        val inferredVerifiedOwner = strictOwnershipSignals
+            .takeIf { signals -> signals.all { it != null } }
+            ?.all { it == true }
+        val verifiedOwner = when {
+            strictOwnershipSignals.any { it == false } -> false
+            explicitVerifiedOwner != null -> explicitVerifiedOwner
+            else -> inferredVerifiedOwner
+        }
+        val hasVerificationData = operation == "verify" || listOf(
+            tailnetReachable,
+            direct,
+            directEndpointIp,
+            endpointMatchesPeer,
+            campusPingReachable,
+            leaseFresh,
+            snatConsistent,
+            explicitVerifiedOwner,
+            watchdogActive,
+            watchdogStatus,
+            leaseRemainingSeconds,
+        ).any { it != null }
+        if (!hasVerificationData) return null
+
+        return VerificationResult(
+            tailnetReachable = tailnetReachable,
+            direct = direct,
+            directEndpointIp = directEndpointIp,
+            endpointMatchesPeer = endpointMatchesPeer,
+            campusPingReachable = campusPingReachable,
+            leaseFresh = leaseFresh,
+            snatConsistent = snatConsistent,
+            verifiedOwner = verifiedOwner,
+            watchdogActive = watchdogActive,
+            watchdogStatus = watchdogStatus,
+            leaseRemainingSeconds = leaseRemainingSeconds,
+        )
+    }
+
+    private fun JSONObject.firstBoolean(vararg names: String): Boolean? {
+        for (name in names) {
+            if (has(name) && !isNull(name)) return optBoolean(name)
+        }
+        return null
+    }
+
+    private fun JSONObject.firstString(vararg names: String): String? {
+        for (name in names) {
+            if (has(name) && !isNull(name)) return optString(name).takeIf { it.isNotBlank() }
+        }
+        return null
+    }
+
+    private fun JSONObject.firstLong(vararg names: String): Long? {
+        for (name in names) {
+            if (has(name) && !isNull(name)) return runCatching { getLong(name) }.getOrNull()
+        }
+        return null
     }
 
     private class FingerprintRepository(expected: String) : HostKeyRepository {

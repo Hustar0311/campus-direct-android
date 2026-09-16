@@ -245,6 +245,7 @@ private fun HomeScreen(
         state.message?.let {
             Card(Modifier.fillMaxWidth()) { Text(it, Modifier.padding(12.dp)) }
         }
+        state.lastRemoteResult?.verification?.let { VerificationCard(it) }
 
         Text("R5C 操作", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -252,7 +253,7 @@ private fun HomeScreen(
             Button(
                 onClick = { confirmAction = "apply" },
                 enabled = !state.busy && state.network?.readyForRemoteChange == true,
-            ) { Text("添加路由") }
+            ) { Text("应用/切换路由") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onVerify, enabled = !state.busy && state.managedPeer != null) { Text("重新验证") }
@@ -273,10 +274,10 @@ private fun HomeScreen(
         val applying = confirmAction == "apply"
         AlertDialog(
             onDismissRequest = { confirmAction = null },
-            title = { Text(if (applying) "确认添加远端路由" else "确认删除受管路由") },
+            title = { Text(if (applying) "确认应用远端路由" else "确认删除受管路由") },
             text = {
                 Text(
-                    if (applying) "应用将调用受限 helper 添加当前手机地址的临时路由。网络变化后会重新读取实际状态。"
+                    if (applying) "应用只把当前物理 Wi-Fi 地址交给受限 helper。若地址变化，由 helper 原子切换并负责失败回滚；APK 不会先删除旧路由。"
                     else "仅删除本应用记录、且经 helper 验证归属的路由。完成后仍需手动把 Wi-Fi 改回 DHCP。",
                 )
             },
@@ -288,6 +289,27 @@ private fun HomeScreen(
             },
             dismissButton = { TextButton(onClick = { confirmAction = null }) { Text("取消") } },
         )
+    }
+}
+
+@Composable
+private fun VerificationCard(result: io.github.hustar0311.campusdirect.model.VerificationResult) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("R5C 综合验证", fontWeight = FontWeight.Bold)
+            verificationDisplayItems(result).forEach { item ->
+                val marker = when (item.passed) {
+                    true -> "✓"
+                    false -> "✗"
+                    null -> "•"
+                }
+                Text("$marker ${item.label}：${item.value}")
+            }
+            Text(
+                "校园网 ICMP 可达仅表示连通；只有 Direct、端点匹配、租约和 SNAT 等条件共同满足时，才显示综合所有权验证通过。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 

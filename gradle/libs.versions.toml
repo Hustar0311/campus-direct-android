@@ -9,6 +9,7 @@ coroutines = "1.10.2"
 jsch = "2.28.6"
 bouncycastle = "1.85"
 junit = "4.13.2"
+json = "20240303"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -24,6 +25,7 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 jsch = { module = "com.github.mwiede:jsch", version.ref = "jsch" }
 bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 junit = { module = "junit:junit", version.ref = "junit" }
+json = { module = "org.json:json", version.ref = "json" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
