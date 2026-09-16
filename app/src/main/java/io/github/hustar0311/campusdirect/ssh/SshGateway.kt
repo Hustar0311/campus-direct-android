@@ -116,6 +116,7 @@ class SshGateway {
         val details = json.optJSONObject("verification") ?: json
         val tailnetReachable = details.firstBoolean("tailnet_reachable", "tailnet_online")
         val direct = details.firstBoolean("direct", "tailscale_direct")
+        val directEndpoint = details.firstString("direct_endpoint")
         val directEndpointIp = details.firstString("direct_endpoint_ip", "endpoint_ip")
         val endpointMatchesPeer = details.firstBoolean("endpoint_matches_peer", "endpoint_matches_campus_ip")
         val campusPingReachable = details.firstBoolean("campus_ping_reachable", "reachable")
@@ -125,9 +126,23 @@ class SshGateway {
         val explicitVerifiedOwner = details.firstBoolean("verified_owner")
         val watchdogActive = details.firstBoolean("watchdog_active", "watchdog_running")
             ?: json.firstBoolean("watchdog_active", "watchdog_running")
-        val watchdogStatus = details.firstString("watchdog_status") ?: json.firstString("watchdog_status")
+        val watchdogStatus = details.firstString("watchdog_status", "status")
+            ?: json.firstString("watchdog_status", "status")
         val leaseRemainingSeconds = details.firstLong("lease_remaining_seconds", "lease_remaining")
             ?: json.firstLong("lease_remaining_seconds", "lease_remaining")
+        val stateOwned = details.firstBoolean("state_owned")
+        val routeExact = details.firstBoolean("route_exact")
+        val watchdogEnabled = details.firstBoolean("watchdog_enabled")
+        val watchdogIntervalSeconds = details.firstLong("watchdog_interval")
+        val staleTimeoutSeconds = details.firstLong("stale_timeout")
+        val endpointMismatchConfirmations = details.firstLong("endpoint_mismatch_confirmations")
+        val lastProbe = details.firstString("last_probe")
+        val lastDirect = details.firstString("last_direct")
+        val failureCount = details.firstLong("failure_count")
+        val mismatchCount = details.firstLong("mismatch_count")
+        val leaseDeadline = details.firstLong("lease_deadline")
+        val expired = details.firstBoolean("expired")
+        val watchdogManagedPeer = details.firstString("watchdog_managed_peer")
         val strictOwnershipSignals = listOf(
             tailnetReachable,
             direct,
@@ -136,17 +151,23 @@ class SshGateway {
             leaseFresh,
             snatConsistent,
         )
+        val ownershipSafetySignals = strictOwnershipSignals + listOf(
+            stateOwned,
+            routeExact,
+            expired?.not(),
+        )
         val inferredVerifiedOwner = strictOwnershipSignals
             .takeIf { signals -> signals.all { it != null } }
             ?.all { it == true }
         val verifiedOwner = when {
-            strictOwnershipSignals.any { it == false } -> false
+            ownershipSafetySignals.any { it == false } -> false
             explicitVerifiedOwner != null -> explicitVerifiedOwner
             else -> inferredVerifiedOwner
         }
         val hasVerificationData = operation == "verify" || listOf(
             tailnetReachable,
             direct,
+            directEndpoint,
             directEndpointIp,
             endpointMatchesPeer,
             campusPingReachable,
@@ -156,12 +177,26 @@ class SshGateway {
             watchdogActive,
             watchdogStatus,
             leaseRemainingSeconds,
+            stateOwned,
+            routeExact,
+            watchdogEnabled,
+            watchdogIntervalSeconds,
+            staleTimeoutSeconds,
+            endpointMismatchConfirmations,
+            lastProbe,
+            lastDirect,
+            failureCount,
+            mismatchCount,
+            leaseDeadline,
+            expired,
+            watchdogManagedPeer,
         ).any { it != null }
         if (!hasVerificationData) return null
 
         return VerificationResult(
             tailnetReachable = tailnetReachable,
             direct = direct,
+            directEndpoint = directEndpoint,
             directEndpointIp = directEndpointIp,
             endpointMatchesPeer = endpointMatchesPeer,
             campusPingReachable = campusPingReachable,
@@ -171,6 +206,19 @@ class SshGateway {
             watchdogActive = watchdogActive,
             watchdogStatus = watchdogStatus,
             leaseRemainingSeconds = leaseRemainingSeconds,
+            stateOwned = stateOwned,
+            routeExact = routeExact,
+            watchdogEnabled = watchdogEnabled,
+            watchdogIntervalSeconds = watchdogIntervalSeconds,
+            staleTimeoutSeconds = staleTimeoutSeconds,
+            endpointMismatchConfirmations = endpointMismatchConfirmations,
+            lastProbe = lastProbe,
+            lastDirect = lastDirect,
+            failureCount = failureCount,
+            mismatchCount = mismatchCount,
+            leaseDeadline = leaseDeadline,
+            expired = expired,
+            watchdogManagedPeer = watchdogManagedPeer,
         )
     }
 
