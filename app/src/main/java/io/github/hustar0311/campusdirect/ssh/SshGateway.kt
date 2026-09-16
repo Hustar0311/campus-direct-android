@@ -126,8 +126,8 @@ class SshGateway {
         val watchdogActive = details.firstBoolean("watchdog_active", "watchdog_running")
             ?: json.firstBoolean("watchdog_active", "watchdog_running")
         val watchdogStatus = details.firstString("watchdog_status") ?: json.firstString("watchdog_status")
-        val leaseRemainingSeconds = details.firstLong("lease_remaining_seconds")
-            ?: json.firstLong("lease_remaining_seconds")
+        val leaseRemainingSeconds = details.firstLong("lease_remaining_seconds", "lease_remaining")
+            ?: json.firstLong("lease_remaining_seconds", "lease_remaining")
         val strictOwnershipSignals = listOf(
             tailnetReachable,
             direct,

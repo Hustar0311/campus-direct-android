@@ -19,7 +19,7 @@ class SshGatewayTest {
 
         assertTrue(result.ok)
         assertTrue(result.verification?.verifiedOwner == true)
-        assertEquals(321, result.verification?.leaseRemainingSeconds)
+        assertEquals(321L, result.verification?.leaseRemainingSeconds)
         assertEquals("active", result.verification?.watchdogStatus)
     }
 
